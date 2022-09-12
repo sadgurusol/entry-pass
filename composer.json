@@ -1,0 +1,22 @@
+{
+    "name": "sadguru/sg-entry-pass",
+    "description": "An elegant login system for laravel application",
+    "type": "project",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "bujji",
+            "email": "bujji191995@gmail.com"
+        }
+    ],
+    "minimum-stability": "dev",
+    "autoload": {
+        "psr-4": {
+            "Sadguru\\SGEntryPass\\": "src/"
+        },
+        "classmap": [
+            "database/migrations"
+        ]
+    },
+    "require": {}
+}
