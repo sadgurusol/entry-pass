@@ -10,13 +10,15 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
-use Mail;
-use Sadguru\SGEntryPass\Mail\LoginLink;
-use Sadguru\SGEntryPass\Mail\PasswordResetLink;
+//use Mail;
+//use Sadguru\SGEntryPass\Mail\LoginLink;
+//use Sadguru\SGEntryPass\Mail\PasswordResetLink;
 use DB;
+
 
 class SGLoginController extends Controller
 {
+
 
     public function login(){
         $user = Auth::user();
@@ -35,11 +37,39 @@ class SGLoginController extends Controller
     }
 
     public function authenticateUser(Request $request){
+        $user = Auth::user();
+        if($user){
+            return redirect('');
+        }
+        Log::info("before validation");
+        $this->validate($request , [
+            'phone' => 'required|digits:10|numeric',
+            'password' => 'required'
+            ]);
+        $data = $request->only(['phone', 'password']);
+        Log::info("After validation");
+        $user = User::where($this->username(), $data['phone'])->first();
+        if( Hash::check($data['password'], $user->password)){
+            Auth::login($user);
+            return redirect(config('sgentrypass.success_route') ?config('sgentrypass.success_route'): config('SGEntryPass.success_route'));
+        }
+        return redirect('login');
+    }
+    public function authenticateUserByEmail(Request $request){
+        $user = Auth::user();
+        if($user){
+            return redirect('');
+        }
+        Log::info("before validation");
+        $this->validate($request , [
+            'email' => 'required|email',
+            'password' => 'required'
+            ]);
         $data = $request->only(['email', 'password']);
         if(Auth::attempt($data)){
             return redirect(config('sgentrypass.success_route') ?config('sgentrypass.success_route'): config('SGEntryPass.success_route'));
         }
-        return redirect('login');
+        return redirect('login')->withErrors(['error' => 'Invalid email/password']);
     }
 
     public function logout(){
@@ -64,21 +94,21 @@ class SGLoginController extends Controller
             return redirect('');
         }
         $this->validate($request, [
-            'email' => 'required|email|max:255|exists:users,email',
+            'phone' => 'required|phone|max:255|exists:users,phone',
         ]);
-        $userExist = User::where('email',$request->get('email'))->first();
+        $userExist = User::where('phone',$request->get('phone'))->first();
         if($userExist){
             if(env('APP_ENV') === 'local'){
-                Mail::to($userExist->email)->send(new PasswordResetLink($userExist));
+                // Mail to be replaced with OTP::to($userExist->phone)->send(new PasswordResetLink($userExist));
             }else{
-                Mail::to($userExist->email)->queue(new PasswordResetLink($userExist));
+                // Mail to be replaced with OTP::to($userExist->phone)->queue(new PasswordResetLink($userExist));
             }
-            $email = $userExist->email;
-            return view('SGEntryPass::password-reset-link-sent', compact('email'));
+            $phone = $userExist->phone;
+            return view('SGEntryPass::password-reset-link-sent', compact('phone'));
         }
         $error = "Email does not exist.";
         // return view('SGEntryPass::login-link', compact(['error']));
-        return redirect()->back()->withErrors(['email' => $error]);
+        return redirect()->back()->withErrors(['phone' => $error]);
     }
 
     public function createPassword(Request $request){
@@ -91,7 +121,7 @@ class SGLoginController extends Controller
         if($loginToken){
             DB::table('password_resets')->where('token', $token)->delete();
             $data = $request->all();
-            $user = User::where('email', $loginToken->email)->first();
+            $user = User::where('phone', $loginToken->phone)->first();
             $user->password = Hash::make($data['password']);
             $user->save();
             return redirect('login');
@@ -118,21 +148,21 @@ class SGLoginController extends Controller
 
     public function sendLoginLink(Request $request){
         $this->validate($request, [
-            'email' => 'required|email|max:255|exists:users,email',
+            'phone' => 'required|phone|max:255|exists:users,phone',
         ]);
-        $userExist = User::where('email',$request->get('email'))->first();
+        $userExist = User::where('phone',$request->get('phone'))->first();
         if($userExist){
             if(env('APP_ENV') === 'local'){
-                Mail::to($userExist->email)->send(new LoginLink($userExist));
+                // Mail to be replaced with OTP::to($userExist->phone)->send(new LoginLink($userExist));
             }else{
-                Mail::to($userExist->email)->queue(new LoginLink($userExist));
+                // Mail to be replaced with OTP::to($userExist->phone)->queue(new LoginLink($userExist));
             }
-            $email = $userExist->email;
-            return view('SGEntryPass::login-link-sent', compact('email'));
+            $phone = $userExist->phone;
+            return view('SGEntryPass::login-link-sent', compact('phone'));
         }
         $error = "Email does not exist.";
        // return view('SGEntryPass::login-link', compact(['error']));
-        return redirect('/login-link')->withErrors(['email' => $error]);
+        return redirect('/login-link')->withErrors(['phone' => $error]);
 
     }
 
@@ -146,11 +176,11 @@ class SGLoginController extends Controller
             $now = Carbon::now();
             $tokenTime = Carbon::parse($loginToken->created_at);
             if($tokenTime->diffInMinutes($now) < 30){
-                $user = User::where('email', $loginToken->email)->first();
-                //$user = User::where('email', 'user@sadguruit.com')->first();
+                $user = User::where('phone', $loginToken->phone)->first();
+                //$user = User::where('phone', 'user@sadguruit.com')->first();
                 $loginToken->status = 'USED';
                 $loginToken->save();
-                Auth::login($user);//Auth::attempt($request->only('email', 'password'));
+                Auth::login($user);//Auth::attempt($request->only('phone', 'password'));
                 if(Auth::user()) {
                     return redirect(config('sgentrypass.success_route') ?config('sgentrypass.success_route'): config('SGEntryPass.success_route'));
                 }
@@ -167,17 +197,22 @@ class SGLoginController extends Controller
 
        $request->validate([
            'name'=>'required|max:255',
-           'email'=>'required|email|unique:users|max:255',
+           'phone'=>'required|phone|unique:users|max:255',
            'password'=>'required|min:8|max:255'
        ]);
         $data = $request->all();
         $user = User::create([
             'name'=>$data['name'],
-            'email'=>$data['email'],
+            'phone'=>$data['phone'],
             'password'=>Hash::make($data['password'])
         ]);
 
         return redirect('login');
 
+    }
+
+    public function username()
+    {
+        return 'phone';
     }
 }
