@@ -121,7 +121,7 @@ class SGLoginController extends Controller
         if($loginToken){
             DB::table('password_resets')->where('token', $token)->delete();
             $data = $request->all();
-            $user = User::where('phone', $loginToken->phone)->first();
+            $user = User::where('email', $loginToken->email)->first();
             $user->password = Hash::make($data['password']);
             $user->save();
             return redirect('login');
