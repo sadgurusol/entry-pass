@@ -10,10 +10,10 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
-//use Mail;
-//use Sadguru\SGEntryPass\Mail\LoginLink;
-//use Sadguru\SGEntryPass\Mail\PasswordResetLink;
+use Mail;
+use Sadguru\SGEntryPass\Mail\LoginLink;
 use DB;
+use Sadguru\SGEntryPass\Mail\PasswordResetLink;
 
 
 class SGLoginController extends Controller
@@ -48,7 +48,7 @@ class SGLoginController extends Controller
             ]);
         $data = $request->only(['phone', 'password']);
         Log::info("After validation");
-        $user = User::where($this->username(), $data['phone'])->first();
+        $user = User::where($this->username(), $data[$this->username()])->first();
         if( Hash::check($data['password'], $user->password)){
             Auth::login($user);
             return redirect(config('sgentrypass.success_route') ?config('sgentrypass.success_route'): config('SGEntryPass.success_route'));
@@ -94,21 +94,21 @@ class SGLoginController extends Controller
             return redirect('');
         }
         $this->validate($request, [
-            'phone' => 'required|phone|max:255|exists:users,phone',
+            'email' => 'required|email|max:255|exists:users,email',
         ]);
-        $userExist = User::where('phone',$request->get('phone'))->first();
+        $userExist = User::where('email',$request->get('email'))->first();
         if($userExist){
             if(env('APP_ENV') === 'local'){
-                // Mail to be replaced with OTP::to($userExist->phone)->send(new PasswordResetLink($userExist));
+                Mail::to($userExist->email)->send(new PasswordResetLink($userExist));
             }else{
-                // Mail to be replaced with OTP::to($userExist->phone)->queue(new PasswordResetLink($userExist));
+                Mail::to($userExist->email)->queue(new PasswordResetLink($userExist));
             }
-            $phone = $userExist->phone;
-            return view('SGEntryPass::password-reset-link-sent', compact('phone'));
+            $email = $userExist->email;
+            return view('SGEntryPass::password-reset-link-sent', compact('email'));
         }
         $error = "Email does not exist.";
         // return view('SGEntryPass::login-link', compact(['error']));
-        return redirect()->back()->withErrors(['phone' => $error]);
+        return redirect()->back()->withErrors(['email' => $error]);
     }
 
     public function createPassword(Request $request){
@@ -148,21 +148,21 @@ class SGLoginController extends Controller
 
     public function sendLoginLink(Request $request){
         $this->validate($request, [
-            'phone' => 'required|phone|max:255|exists:users,phone',
+            'email' => 'required|email|max:255|exists:users,email',
         ]);
-        $userExist = User::where('phone',$request->get('phone'))->first();
+        $userExist = User::where('email',$request->get('email'))->first();
         if($userExist){
             if(env('APP_ENV') === 'local'){
-                // Mail to be replaced with OTP::to($userExist->phone)->send(new LoginLink($userExist));
+                Mail::to($userExist->email)->send(new LoginLink($userExist));
             }else{
-                // Mail to be replaced with OTP::to($userExist->phone)->queue(new LoginLink($userExist));
+                Mail::to($userExist->email)->queue(new LoginLink($userExist));
             }
-            $phone = $userExist->phone;
-            return view('SGEntryPass::login-link-sent', compact('phone'));
+            $email = $userExist->email;
+            return view('SGEntryPass::login-link-sent', compact('email'));
         }
         $error = "Email does not exist.";
-       // return view('SGEntryPass::login-link', compact(['error']));
-        return redirect('/login-link')->withErrors(['phone' => $error]);
+        // return view('SGEntryPass::login-link', compact(['error']));
+        return redirect('/login-link')->withErrors(['email' => $error]);
 
     }
 
@@ -213,6 +213,6 @@ class SGLoginController extends Controller
 
     public function username()
     {
-        return 'phone';
+        return 'email';
     }
 }
